@@ -37,7 +37,7 @@ class Yundama():
     def upload(self, files, timeout, code_type):
         """
         上传验证码得到识别结果
-        :param files:
+        :param files:.0.
         :param timeout:
         :param code_type:
         :return:

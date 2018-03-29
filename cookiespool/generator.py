@@ -33,15 +33,25 @@ class CookiesGenerator(object):
         :return:
         """
         if browser_type == 'PhantomJS':
+            # 获取PhantomJS的配置
             caps = DesiredCapabilities.PHANTOMJS
             caps[
                 "phantomjs.page.settings.userAgent"] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36'
+            # 创建浏览器对象
             self.browser = webdriver.PhantomJS(desired_capabilities=caps)
+            # 设置浏览器窗口大小
             self.browser.set_window_size(1400, 500)
         elif browser_type == 'Chrome':
+            # 创建浏览器对象
             self.browser = webdriver.Chrome()
 
     def new_cookies(self, username, password):
+        """
+        获取cookies
+        :param username: 用户名
+        :param password: 密码
+        :return: (username,cookies)
+        """
         raise NotImplementedError
 
     def set_cookies(self, account):
@@ -64,7 +74,7 @@ class CookiesGenerator(object):
         """
         accounts = self.account_db.all()
         cookies = self.cookies_db.all()
-        # Account 中对应的用户
+        # Account 中对应的用户(生成器转为列表 )
         accounts = list(accounts)
         # Cookies中对应的用户
         valid_users = [cookie.get('username') for cookie in cookies]
@@ -72,12 +82,15 @@ class CookiesGenerator(object):
         if len(accounts):
             self._init_browser(browser_type=self.browser_type)
         for account in accounts:
+            # 判断用户是否已有cookies
             if not account.get('username') in valid_users:
                 print('Getting Cookies of ', self.name, account.get('username'), account.get('password'))
+                # 获取cookies并保存
                 self.set_cookies(account)
         print('Generator Run Finished')
 
     def close(self):
+        """关闭浏览器对象"""
         try:
             print('Closing Browser')
             self.browser.close()
@@ -95,18 +108,23 @@ class WeiboCookiesGenerator(CookiesGenerator):
         """
         CookiesGenerator.__init__(self, name, browser_type)
         self.name = name
+        # 创建一个云打码对象(调用云打码api识别验证码)
         self.ydm = Yundama(YUNDAMA_USERNAME, YUNDAMA_PASSWORD, YUNDAMA_APP_ID, YUNDAMA_APP_KEY)
 
     def _success(self, username):
+        # 创建浏览器等待对象
         wait = WebDriverWait(self.browser, 5)
+        # 等待元素加载
         success = wait.until(EC.visibility_of_element_located((By.CLASS_NAME, 'me_portrait_w')))
         if success:
             print('登录成功')
+            # 访问网站测试cookies是否可用
             self.browser.get('http://weibo.cn/')
 
             if "我的首页" in self.browser.title:
                 print(self.browser.get_cookies())
                 cookies = {}
+                # 获取cookies
                 for cookie in self.browser.get_cookies():
                     cookies[cookie["name"]] = cookie["value"]
                 print(cookies)
@@ -121,22 +139,31 @@ class WeiboCookiesGenerator(CookiesGenerator):
         :return: 用户名和Cookies
         """
         print('Generating Cookies of', username)
+        # 删除浏览器所有cookeis
         self.browser.delete_all_cookies()
+        # 浏览器退出登录
         self.browser.get('http://my.sina.com.cn/profile/unlogin')
+        # 创建浏览器等待对象
         wait = WebDriverWait(self.browser, 20)
 
         try:
+            # 等待元素加载
             login = wait.until(EC.visibility_of_element_located((By.ID, 'hd_login')))
+            # 点击登录按钮跳转到登录页面
             login.click()
+            # 获取用户名输入框并输入用户名
             user = wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, '.loginformlist input[name="loginname"]')))
             user.send_keys(username)
+            # 获取密码输入框并输入密码
             psd = wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, '.loginformlist input[name="password"]')))
             psd.send_keys(password)
+            # 点击提交按钮
             submit = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, '.login_btn')))
             submit.click()
             try:
+                # 判断是否登录成功，如果报TimeoutException异常说明需要输入验证码
                 result = self._success(username)
                 if result:
                     return result
@@ -144,19 +171,24 @@ class WeiboCookiesGenerator(CookiesGenerator):
                 print('出现验证码，开始识别验证码')
                 yzm = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, '.loginform_yzm .yzm')))
                 url = yzm.get_attribute('src')
+                # 获取cookies用于获取验证码图片
                 cookies = self.browser.get_cookies()
                 cookies_dict = {}
                 for cookie in cookies:
                     cookies_dict[cookie.get('name')] = cookie.get('value')
                 response = requests.get(url, cookies=cookies_dict)
+                # 调用云打码api识别验证码
                 result = self.ydm.identify(stream=response.content)
                 if not result:
                     print('验证码识别失败, 跳过识别')
                     return
+                # 获取验证码输入框并输入验证码
                 door = wait.until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.loginform_yzm input[name="door"]')))
                 door.send_keys(result)
+                # 再次点击登录
                 submit.click()
+                # 判断是否登录成功
                 result = self._success(username)
                 if result:
                     return result

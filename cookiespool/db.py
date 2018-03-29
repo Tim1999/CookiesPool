@@ -119,9 +119,12 @@ class CookiesRedisClient(RedisClient):
         :return:
         """
         try:
+            # 获取所以的cookie的键
             for key in self._db.keys('{domain}:{name}:*'.format(domain=self.domain, name=self.name)):
+                # 用':'分隔键
                 group = key.decode('utf-8').split(':')
                 if len(group) == 3:
+                    # 获取cookie的帐号
                     username = group[2]
                     yield {
                         'username': username,

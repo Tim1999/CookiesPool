@@ -19,7 +19,8 @@ class ValidTester(object):
         accounts = self.cookies_db.all()
         for account in accounts:
             username = account.get('username')
-            cookies = self.cookies_db.get(username)
+            cookies = account.get('cookies')
+            # cookies = self.cookies_db.get(username)
             self.test(account, cookies)
 
 
